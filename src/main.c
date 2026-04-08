@@ -14,6 +14,7 @@ int main() {
         ClearBackground(BLACK);
         PCG_DrawMap(tileArray); // Function from PCG.c
         DrawText("Construct Map Editor", 20, 20, 20, WHITE);
+        PCG_DrawGUI(tileArray);
         EndDrawing();
     }
     CloseWindow();
