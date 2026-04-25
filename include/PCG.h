@@ -1,21 +1,19 @@
 #pragma once
 #include "raylib.h"
 
-namespace PCG
-{
+namespace PCG {
     // Screen & Map Dimensions
     constexpr int SCREEN_WIDTH = 1024;
     constexpr int SCREEN_HEIGHT = 1024;
-    constexpr int TILE_SIZE = 64;
+    constexpr int TILE_SIZE = 4;
     constexpr int MAP_COLUMNS = (SCREEN_WIDTH / TILE_SIZE);
     constexpr int MAP_ROWS = (SCREEN_HEIGHT / TILE_SIZE);
 
-    // Tile Types
-    typedef enum
-    {
+    // Tile Types (Using Enum for readability)
+    typedef enum {
         TILE_TYPE_GRASS = 0,
         TILE_TYPE_ROCK = 1,
-        TILE_COUNT
+        TILE_COUNT  // Automatically counts total types
     } TileType;
 
     // Visual & Character settings
@@ -25,10 +23,6 @@ namespace PCG
     constexpr Color ROCK_COLOR = { 114, 147, 160, 255 };
     constexpr Color UNKNOWN_COLOR = WHITE;
 
-    // File Names
-    constexpr const char* MAP_TEXT_FILENAME = "pcg_map_data.txt";
-    constexpr const char* MAP_IMAGE_FILENAME = "pcg_map.png";
-
     // UI variable defines used to position buttons on screen
     constexpr int BUTTON_WIDTH = 200;
     constexpr int BUTTON_HEIGHT = 50;
@@ -36,20 +30,66 @@ namespace PCG
     constexpr int BUTTON_Y = (SCREEN_HEIGHT - BUTTON_HEIGHT - 20);
     constexpr Rectangle RESET_BUTTON_BOUNDS = { BUTTON_X, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT };
 
-    // Function Declarations
-    void PCG_CreateMap(TileType _tileArray[MAP_ROWS][MAP_COLUMNS]);
-    void PCG_DrawMap(TileType _tileArray[MAP_ROWS][MAP_COLUMNS]);
-    void PCG_PrintMap(TileType _tileArray[MAP_ROWS][MAP_COLUMNS]);
-    Color PCG_GetTileColor(TileType tileType);
+    // File Names
+    constexpr char* MAP_TEXT_FILENAME = "pcg_map_data.txt";
+    constexpr char* MAP_IMAGE_FILENAME = "pcg_map.png";
 
-    // Helpers
-    char GetTileChar(TileType tileType);
+    // Pure Virtual Class
+    class MapGenerator {
+    public:
+        virtual ~MapGenerator() = default; // virtual destructor
+        // This enforces that every child class MUST write their own Generate function.
+        virtual void Generate(TileType _tileArray[MAP_ROWS][MAP_COLUMNS]) = 0;
+    };
 
-    // I/O Functions
-    void PCG_SaveMapData(TileType _tileArray[MAP_ROWS][MAP_COLUMNS], const char* filename);
-    void PCG_LoadMapData(TileType _tileArray[MAP_ROWS][MAP_COLUMNS], const char* filename);
-    void PCG_SaveMapImage(TileType _tileArray[MAP_ROWS][MAP_COLUMNS], const char* filename);
+    // Random Map Generator
+    class RandomMapGenerator : public MapGenerator {
+    public:
+        RandomMapGenerator();
+        ~RandomMapGenerator();
+        void Generate(TileType _tileArray[MAP_ROWS][MAP_COLUMNS]) override;
+    };
 
-    // UI
-    void PCG_DrawGUI(TileType tileArray[MAP_ROWS][MAP_COLUMNS]);
+    // Noise Map Generator
+    class NoiseMapGenerator : public MapGenerator {
+    public:
+        NoiseMapGenerator();
+        ~NoiseMapGenerator();
+        void Generate(TileType _tileArray[MAP_ROWS][MAP_COLUMNS]) override;
+    };
+
+    class TileMap {
+    public:
+        TileMap();  // constructor
+        ~TileMap(); // destructor
+
+        // Core Actions
+        // Function Declarations
+        void CreateMap();
+        void DrawMap() const; // 'const' means this function won't change the map data
+        void PrintMap() const;
+        void DrawGUI();
+
+        // I/O Functions
+        void SaveMapData(const char* filename) const;
+        void SaveMapImage(const char* filename) const;
+        void LoadMapData(const char* filename);
+
+        // Accessors (Getters/Setters)
+        void SetTile(int x, int y, PCG::TileType tileType);
+        Color GetTileColor(TileType tileType) const;
+        char GetTileChar(TileType tileType) const;
+
+        // getter /setter for map generator 
+        void SetMapGenerator(MapGenerator* generator);
+        MapGenerator* GetMapGenerator() const;
+
+        // public tile array, for convenience but ideally hidden as private later
+        TileType tileArray[MAP_ROWS][MAP_COLUMNS] = { PCG::TileType::TILE_TYPE_ROCK };  // 2D array to hold tile types for the map
+
+    private:
+        MapGenerator* mapGenerator;
+
+    };
+
 }
