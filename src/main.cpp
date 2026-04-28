@@ -11,10 +11,13 @@ int main() {
     PCG::TileMap tileMap;
     //tileMap.CreateMap();
     //tileMap.SetMapGenerator(new PCG::RandomMapGenerator());
-    tileMap.SetMapGenerator(new PCG::NoiseMapGenerator());
+    //tileMap.SetMapGenerator(new PCG::NoiseMapGenerator());
+    tileMap.SetMapGenerator(new PCG::CellularAutomataGenerator());
     tileMap.GetMapGenerator()->Generate(tileMap.tileArray); // Generate the map using the selected generator
 
     while (!WindowShouldClose()) {
+        tileMap.HandleMouseEditing();
+
         BeginDrawing();
         ClearBackground(BLACK);
         //PCG::DrawMap(tileArray); // Function from PCG.c
@@ -24,6 +27,7 @@ int main() {
         tileMap.DrawGUI();
         EndDrawing();
     }
+
     CloseWindow();
     return 0;
 }

@@ -5,7 +5,7 @@ namespace PCG {
     // Screen & Map Dimensions
     constexpr int SCREEN_WIDTH = 1024;
     constexpr int SCREEN_HEIGHT = 1024;
-    constexpr int TILE_SIZE = 4;
+    constexpr int TILE_SIZE = 8;
     constexpr int MAP_COLUMNS = (SCREEN_WIDTH / TILE_SIZE);
     constexpr int MAP_ROWS = (SCREEN_HEIGHT / TILE_SIZE);
 
@@ -31,8 +31,8 @@ namespace PCG {
     constexpr Rectangle RESET_BUTTON_BOUNDS = { BUTTON_X, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT };
 
     // File Names
-    constexpr char* MAP_TEXT_FILENAME = "pcg_map_data.txt";
-    constexpr char* MAP_IMAGE_FILENAME = "pcg_map.png";
+    constexpr const char* MAP_TEXT_FILENAME = "pcg_map_data.txt";
+    constexpr const char* MAP_IMAGE_FILENAME = "pcg_map.png";
 
     // Pure Virtual Class
     class MapGenerator {
@@ -58,6 +58,17 @@ namespace PCG {
         void Generate(TileType _tileArray[MAP_ROWS][MAP_COLUMNS]) override;
     };
 
+    // Cellular Automata Map Generator
+    class CellularAutomataGenerator : public MapGenerator {
+    public:
+        CellularAutomataGenerator();
+        ~CellularAutomataGenerator();
+        void Generate(TileType _tileArray[MAP_ROWS][MAP_COLUMNS]) override;
+
+    private:
+        int CountRockNeighbours(TileType _tileArray[MAP_ROWS][MAP_COLUMNS], int x, int y);
+    };
+
     class TileMap {
     public:
         TileMap();  // constructor
@@ -69,6 +80,9 @@ namespace PCG {
         void DrawMap() const; // 'const' means this function won't change the map data
         void PrintMap() const;
         void DrawGUI();
+
+        // Manual editing
+        void HandleMouseEditing();
 
         // I/O Functions
         void SaveMapData(const char* filename) const;
@@ -89,7 +103,5 @@ namespace PCG {
 
     private:
         MapGenerator* mapGenerator;
-
     };
-
 }

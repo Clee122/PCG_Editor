@@ -52,7 +52,6 @@ void PCG::TileMap::CreateMap() {
 // void SetTile(int x, int y, TileType tileType)
 // set a tile in our tileMap array, using the input x and y coordinates, and the type of tile we want to set it to (tileType)
 // ============================================= 
-
 void PCG::TileMap::SetTile(int x, int y, TileType tileType)
 {
     if (x >= 0 && x < MAP_COLUMNS && y >= 0 && y < MAP_ROWS) {
@@ -152,16 +151,15 @@ void PCG::TileMap::LoadMapData(const char* _filename) {
         return;
     }
 
-
     // Get each character from our file stream, and load it into our tileMap array
     for (int y = 0; y < PCG::MAP_ROWS; y++) {
         for (int x = 0; x < PCG::MAP_COLUMNS; x++) {
             int ch = file.get(); // Get char from C++ file stream
+
             // Skip invisible newline characters
             while (ch == '\n' || ch == '\r') {
                 ch = file.get(); // Get char from C++ file stream for skipping newlines
             }
-
 
             if (ch == PCG::GRASS_CHAR) {
                 tileArray[y][x] = PCG::TileType::TILE_TYPE_GRASS;
@@ -201,6 +199,36 @@ void PCG::TileMap::SaveMapImage(const char* filename) const {
 
 
 // ============================================= 
+// void HandleMouseEditing()
+// Allows the user to manually paint the map.
+// Left mouse button paints rock.
+// Right mouse button paints grass.
+// ============================================= 
+void PCG::TileMap::HandleMouseEditing()
+{
+    Vector2 mousePos = GetMousePosition();
+
+    // Prevent mouse painting when interacting with the UI panel on the right side.
+    if (mousePos.x >= BUTTON_X - 10) {
+        return;
+    }
+
+    int tileX = (int)(mousePos.x / TILE_SIZE);
+    int tileY = (int)(mousePos.y / TILE_SIZE);
+
+    if (tileX >= 0 && tileX < MAP_COLUMNS && tileY >= 0 && tileY < MAP_ROWS) {
+        if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
+            SetTile(tileX, tileY, TILE_TYPE_ROCK);
+        }
+
+        if (IsMouseButtonDown(MOUSE_RIGHT_BUTTON)) {
+            SetTile(tileX, tileY, TILE_TYPE_GRASS);
+        }
+    }
+}
+
+
+// ============================================= 
 // void PCG_DrawGUI()
 // ============================================= 
 void PCG::TileMap::DrawGUI() {
@@ -208,9 +236,10 @@ void PCG::TileMap::DrawGUI() {
     if (GuiButton(RESET_BUTTON_BOUNDS, "Reset Map")) {
         //CreateMap();
         // pass in this instances tileArray to our map generator, and call the generate function to fill it with new data.
-        GetMapGenerator()->Generate(tileArray);
+        if (GetMapGenerator() != nullptr) {
+            GetMapGenerator()->Generate(tileArray);
+        }
     }
-
 
     // Save Data Button
     Rectangle saveRect = { PCG::BUTTON_X, PCG::BUTTON_Y - 70, PCG::BUTTON_WIDTH, PCG::BUTTON_HEIGHT };
@@ -224,20 +253,52 @@ void PCG::TileMap::DrawGUI() {
         LoadMapData(MAP_TEXT_FILENAME);
     }
 
-
     // Save Image Button
     Rectangle imgRect = { PCG::BUTTON_X, PCG::BUTTON_Y - 210, PCG::BUTTON_WIDTH, PCG::BUTTON_HEIGHT };
     if (GuiButton(imgRect, "Save Map PNG")) {
         SaveMapImage(MAP_IMAGE_FILENAME);
     }
+
+    // Random Generator Button
+    Rectangle randomRect = { PCG::BUTTON_X, PCG::BUTTON_Y - 280, PCG::BUTTON_WIDTH, PCG::BUTTON_HEIGHT };
+    if (GuiButton(randomRect, "Random Generator")) {
+        SetMapGenerator(new PCG::RandomMapGenerator());
+        GetMapGenerator()->Generate(tileArray);
+    }
+
+    // Noise Generator Button
+    Rectangle noiseRect = { PCG::BUTTON_X, PCG::BUTTON_Y - 350, PCG::BUTTON_WIDTH, PCG::BUTTON_HEIGHT };
+    if (GuiButton(noiseRect, "Noise Generator")) {
+        SetMapGenerator(new PCG::NoiseMapGenerator());
+        GetMapGenerator()->Generate(tileArray);
+    }
+
+    // Cellular Automata Generator Button
+    Rectangle cellularRect = { PCG::BUTTON_X, PCG::BUTTON_Y - 420, PCG::BUTTON_WIDTH, PCG::BUTTON_HEIGHT };
+    if (GuiButton(cellularRect, "Cellular Automata")) {
+        SetMapGenerator(new PCG::CellularAutomataGenerator());
+        GetMapGenerator()->Generate(tileArray);
+    }
+
+    // Small instruction text for manual editing.
+    DrawText("Left click: Rock", 20, SCREEN_HEIGHT - 50, 20, WHITE);
+    DrawText("Right click: Grass", 20, SCREEN_HEIGHT - 25, 20, WHITE);
 }
+
 
 // =============================================
 // SetMapGenerator and GetMapGenerator functions for our TileMap class, to allow us to assign a map generator to our tilemap, and retrieve it when we want to generate new maps.
 // =============================================
 void PCG::TileMap::SetMapGenerator(PCG::MapGenerator* generator) {
+    // Delete the previous generator before assigning a new one to avoid leaking memory.
+    if (mapGenerator != nullptr) {
+        delete mapGenerator;
+        mapGenerator = nullptr;
+    }
+
     mapGenerator = generator;
 }
+
 
 // =============================================
 // GetMapGenerator returns a pointer to the current map generator assigned to this tilemap, so we can call its Generate function when we want to create new maps.
@@ -245,6 +306,7 @@ void PCG::TileMap::SetMapGenerator(PCG::MapGenerator* generator) {
 PCG::MapGenerator* PCG::TileMap::GetMapGenerator() const {
     return mapGenerator;
 }
+
 
 // =============================================
 // MapGenerator
@@ -312,5 +374,91 @@ void PCG::NoiseMapGenerator::Generate(TileType _tileArray[MAP_ROWS][MAP_COLUMNS]
             }
         }
     }
+
     UnloadImage(noiseImg);
+}
+
+
+// =============================================
+// CellularAutomataGenerator
+// Creates cave-like maps by first randomising tiles, then smoothing them based on nearby rock tiles.
+// =============================================
+// Constructor
+PCG::CellularAutomataGenerator::CellularAutomataGenerator() {
+    // nothing to initialize for now, but this class could later expose parameters such as fill percentage or smoothing passes
+}
+
+// Destructor
+PCG::CellularAutomataGenerator::~CellularAutomataGenerator() {
+    // nothing to clean up for now
+}
+
+
+// =============================================
+// CountRockNeighbours
+// Counts how many surrounding tiles are rocks.
+// Out-of-bounds tiles are treated as rocks to create solid map borders.
+// =============================================
+int PCG::CellularAutomataGenerator::CountRockNeighbours(TileType _tileArray[MAP_ROWS][MAP_COLUMNS], int x, int y)
+{
+    int rockCount = 0;
+
+    for (int neighbourY = y - 1; neighbourY <= y + 1; neighbourY++) {
+        for (int neighbourX = x - 1; neighbourX <= x + 1; neighbourX++) {
+            if (neighbourX == x && neighbourY == y) {
+                continue;
+            }
+
+            if (neighbourX < 0 || neighbourX >= MAP_COLUMNS || neighbourY < 0 || neighbourY >= MAP_ROWS) {
+                rockCount++;
+            }
+            else if (_tileArray[neighbourY][neighbourX] == TILE_TYPE_ROCK) {
+                rockCount++;
+            }
+        }
+    }
+
+    return rockCount;
+}
+
+
+// =============================================
+// Generate
+// First creates a noisy random rock/grass map, then repeatedly smooths it.
+// More neighbouring rocks means the current tile becomes rock.
+// Fewer neighbouring rocks means the current tile becomes grass.
+// =============================================
+void PCG::CellularAutomataGenerator::Generate(TileType _tileArray[MAP_ROWS][MAP_COLUMNS])
+{
+    // Initial random fill. A higher number creates more rock-heavy caves.
+    for (int y = 0; y < MAP_ROWS; y++) {
+        for (int x = 0; x < MAP_COLUMNS; x++) {
+            int randomValue = GetRandomValue(0, 100);
+            _tileArray[y][x] = (randomValue < 45) ? TILE_TYPE_ROCK : TILE_TYPE_GRASS;
+        }
+    }
+
+    // Smooth the map multiple times to create more natural cave-like shapes.
+    for (int i = 0; i < 5; i++) {
+        TileType tempArray[MAP_ROWS][MAP_COLUMNS];
+
+        for (int y = 0; y < MAP_ROWS; y++) {
+            for (int x = 0; x < MAP_COLUMNS; x++) {
+                int neighbours = CountRockNeighbours(_tileArray, x, y);
+
+                if (neighbours > 4) {
+                    tempArray[y][x] = TILE_TYPE_ROCK;
+                }
+                else {
+                    tempArray[y][x] = TILE_TYPE_GRASS;
+                }
+            }
+        }
+
+        for (int y = 0; y < MAP_ROWS; y++) {
+            for (int x = 0; x < MAP_COLUMNS; x++) {
+                _tileArray[y][x] = tempArray[y][x];
+            }
+        }
+    }
 }
