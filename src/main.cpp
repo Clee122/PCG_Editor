@@ -1,30 +1,32 @@
 #include "raylib.h"
 #include "resource_dir.h"
-#include "PCG.h" // Import our new module
+#include "PCG.h"
 
 int main() {
     SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
     InitWindow(PCG::SCREEN_WIDTH, PCG::SCREEN_HEIGHT, "Construct Map Editor");
 
-    //PCG::TileType tileArray[PCG::MAP_ROWS][PCG::MAP_COLUMNS] = { PCG::TileType::TILE_TYPE_ROCK };
-    //PCG::CreateMap(tileArray);
+    // TileMap owns the grid data and handles drawing, editing, saving, loading, and UI.
     PCG::TileMap tileMap;
-    //tileMap.CreateMap();
-    //tileMap.SetMapGenerator(new PCG::RandomMapGenerator());
-    //tileMap.SetMapGenerator(new PCG::NoiseMapGenerator());
+
+    // Cellular Automata is used as the default generator because it produces more structured cave-like maps.
     tileMap.SetMapGenerator(new PCG::CellularAutomataGenerator());
-    tileMap.GetMapGenerator()->Generate(tileMap.tileArray); // Generate the map using the selected generator
+
+    // Generate the first map before the main loop so the user starts with visible content.
+    tileMap.GetMapGenerator()->Generate(tileMap.tileArray);
 
     while (!WindowShouldClose()) {
+        // Input is checked every frame so manual painting feels responsive.
         tileMap.HandleMouseEditing();
 
         BeginDrawing();
         ClearBackground(BLACK);
-        //PCG::DrawMap(tileArray); // Function from PCG.c
+
+        // Draw the current map state first, then draw text and UI on top.
         tileMap.DrawMap();
         DrawText("Construct Map Editor", 20, 20, 20, WHITE);
-        //PCG::PCG_DrawGUI(tileArray);
         tileMap.DrawGUI();
+
         EndDrawing();
     }
 

@@ -2,44 +2,43 @@
 #include <stdio.h>
 #include <iostream>
 #include <fstream>
-// Required to call Raylib gui buttons. Add this near the top of PCG.c
-#define RAYGUI_IMPLEMENTATION
-#include "raygui.h" 
 
-// =============================================
+#define RAYGUI_IMPLEMENTATION
+#include "raygui.h"
+
+
 // Constructor for our TileMap class.
-// =============================================
 PCG::TileMap::TileMap()
 {
-    // Initialise our tileMap array to all grass tiles by default when we create a new TileMap object. 
-    // We can change this later using the CreateMap() function, or by setting individual tiles with SetTile().
+    // I initialise the map as grass so the editor starts from a clean readable state
+    // before any generator or manual painting changes the tiles.
     for (int y = 0; y < MAP_ROWS; y++) {
         for (int x = 0; x < MAP_COLUMNS; x++) {
             tileArray[y][x] = TILE_TYPE_GRASS;
         }
     }
 
-    // initialise the mapGenerator to null.
+    // The generator pointer starts as nullptr because the user chooses which
+    // generation method will control the map later.
     mapGenerator = nullptr;
 }
 
-
-// =============================================
 // Destructor for our TileMap class.
-// =============================================
 PCG::TileMap::~TileMap()
 {
+    // Since generators are created on the heap, they need to be deleted when
+    // the TileMap is destroyed to avoid leaving memory behind.
     if (mapGenerator != nullptr) {
-        delete mapGenerator; // Clean up the map generator if it exists
+        delete mapGenerator;
         mapGenerator = nullptr;
     }
 }
 
 
-// ============================================= 
 // void CreateMap()
-// ============================================= 
 void PCG::TileMap::CreateMap() {
+    // This gives the editor a quick random map option, which is useful as a
+    // simple baseline before comparing it with more structured generators.
     for (int y = 0; y < MAP_ROWS; y++) {
         for (int x = 0; x < MAP_COLUMNS; x++) {
             tileArray[y][x] = (TileType)GetRandomValue(0, TILE_COUNT - 1);
@@ -47,24 +46,20 @@ void PCG::TileMap::CreateMap() {
     }
 }
 
-
-// ============================================= 
 // void SetTile(int x, int y, TileType tileType)
-// set a tile in our tileMap array, using the input x and y coordinates, and the type of tile we want to set it to (tileType)
-// ============================================= 
 void PCG::TileMap::SetTile(int x, int y, TileType tileType)
 {
+    // This check stops invalid tile positions from changing the array,
+    // which prevents out-of-bounds errors when editing near the map edges.
     if (x >= 0 && x < MAP_COLUMNS && y >= 0 && y < MAP_ROWS) {
         tileArray[y][x] = tileType;
     }
 }
 
-
-// ============================================= 
 // Color PCG_GetTileColor(TileType tileType)
-// Return a colour based on the type type input
-// ============================================= 
 Color PCG::TileMap::GetTileColor(PCG::TileType _tileType) const {
+    // I keep tile colours in one function so grass and rock always look consistent
+    // across drawing, saving, and exporting.
     switch (_tileType) {
     case PCG::TileType::TILE_TYPE_GRASS:
         return GRASS_COLOR;
@@ -76,33 +71,38 @@ Color PCG::TileMap::GetTileColor(PCG::TileType _tileType) const {
 }
 
 
-// ============================================= 
 // void PCG_DrawMap()
-// ============================================= 
 void PCG::TileMap::DrawMap() const {
+    // The map is drawn directly from the tile data, so any generator or mouse edit
+    // immediately changes what the user sees on screen.
     for (int y = 0; y < MAP_ROWS; y++) {
         for (int x = 0; x < MAP_COLUMNS; x++) {
-            DrawRectangle(x * PCG::TILE_SIZE, y * PCG::TILE_SIZE, PCG::TILE_SIZE, PCG::TILE_SIZE, PCG::TileMap::GetTileColor(tileArray[y][x]));
+            DrawRectangle(
+                x * PCG::TILE_SIZE,
+                y * PCG::TILE_SIZE,
+                PCG::TILE_SIZE,
+                PCG::TILE_SIZE,
+                PCG::TileMap::GetTileColor(tileArray[y][x])
+            );
         }
     }
 }
 
 
-// ============================================= 
 // void PCG_PrintMap()
-// ============================================= 
 void PCG::TileMap::PrintMap() const {
+    // This console output was kept as a basic debugging tool while testing map data.
     std::cout << "\n-------Map Layout:--------\n";
-    // (Existing Print Logic here...)
     std::cout << "--------------------------\n";
 }
 
 
-// ============================================= 
+
 // char GetTileChar(TileType tileType)
-// Return a char value based on the type of tile passed in
-// ============================================= 
+
 char PCG::TileMap::GetTileChar(PCG::TileType _tileType) const {
+    // These characters are used when saving the map so the text file is readable
+    // and can be loaded back into tile data later.
     switch (_tileType) {
     case PCG::TileType::TILE_TYPE_GRASS:
         return PCG::GRASS_CHAR;
@@ -114,51 +114,54 @@ char PCG::TileMap::GetTileChar(PCG::TileType _tileType) const {
 }
 
 
-// ============================================= 
 // void PCG_SaveMapData(const char* _filename)
-// Store our tilemap data to a text file using the input _filename
-// ============================================= 
 void PCG::TileMap::SaveMapData(const char* _filename) const {
     std::fstream file;
-    file.open(_filename, std::ios::out); // Open C++ file stream for writing
-    if (!file.is_open()) { // Check if file opened successfully
+    file.open(_filename, std::ios::out);
+
+    // If the file cannot open, the function exits safely rather than trying to
+    // write to an invalid stream.
+    if (!file.is_open()) {
         return;
     }
 
-    // Write each single tileArray character into our file stream
+    // Saving the map as text makes the generated level reusable later instead of
+    // only existing while the program is running.
     for (int y = 0; y < PCG::MAP_ROWS; y++) {
         for (int x = 0; x < PCG::MAP_COLUMNS; x++) {
-            file.put(PCG::TileMap::GetTileChar(tileArray[y][x])); // Write char to C++ file stream
+            file.put(PCG::TileMap::GetTileChar(tileArray[y][x]));
         }
 
-        file.put('\n'); // New line at end of row for C++ file stream
+        // Each row is separated so the saved file still resembles the grid layout.
+        file.put('\n');
     }
 
-    file.close(); // Close C++ file stream
+    file.close();
     printf("Map saved to %s\n", _filename);
 }
 
 
-// ============================================= 
 // void PCG_LoadMapData(const char* _filename)
-// Load our tilemap data from a text file, using input _filename
-// ============================================= 
 void PCG::TileMap::LoadMapData(const char* _filename) {
-    std::fstream file;  // C++ file stream object for reading
-    file.open(_filename, std::ios::in); // Open C++ file stream for reading
+    std::fstream file;
+    file.open(_filename, std::ios::in);
 
-    if (!file.is_open()) { // Check if file opened successfully for C++ stream
+    // The load function exits if there is no valid file, which avoids overwriting
+    // the current map with incomplete or invalid data.
+    if (!file.is_open()) {
         return;
     }
 
-    // Get each character from our file stream, and load it into our tileMap array
+    // The saved file is read back into the tile array so the editor can restore
+    // maps created in earlier sessions.
     for (int y = 0; y < PCG::MAP_ROWS; y++) {
         for (int x = 0; x < PCG::MAP_COLUMNS; x++) {
-            int ch = file.get(); // Get char from C++ file stream
+            int ch = file.get();
 
-            // Skip invisible newline characters
+            // Newline characters are skipped because the saved file stores the map row by row.
+            // Without this, loading would treat line breaks as tile data.
             while (ch == '\n' || ch == '\r') {
-                ch = file.get(); // Get char from C++ file stream for skipping newlines
+                ch = file.get();
             }
 
             if (ch == PCG::GRASS_CHAR) {
@@ -170,16 +173,14 @@ void PCG::TileMap::LoadMapData(const char* _filename) {
         }
     }
 
-    file.close(); // Close C++ file stream
-    std::cout << "Map loaded from " << _filename << std::endl; // C++ style print statement
+    file.close();
+    std::cout << "Map loaded from " << _filename << std::endl;
 }
 
-
-// ============================================= 
-// void PCG_SaveMapImage(const char* filename)
-// Store our tileMap data as a .png image, using the input filename.
-// ============================================= 
+// void PCG_SaveMapImage(const char* filename
 void PCG::TileMap::SaveMapImage(const char* filename) const {
+    // Exporting an image gives a quick visual record of the generated map,
+    // which is useful for checking results without reopening the editor.
     Image mapImage = GenImageColor(PCG::MAP_COLUMNS, PCG::MAP_ROWS, BLACK);
 
     for (int y = 0; y < PCG::MAP_ROWS; y++) {
@@ -190,25 +191,20 @@ void PCG::TileMap::SaveMapImage(const char* filename) const {
     }
 
     if (ExportImage(mapImage, filename)) {
-        // printf("Image saved: %s\n", filename); // old C-style print statement
-        std::cout << "Image saved: " << filename << std::endl; // C++ style print statements
+        std::cout << "Image saved: " << filename << std::endl;
     }
 
     UnloadImage(mapImage);
 }
 
 
-// ============================================= 
 // void HandleMouseEditing()
-// Allows the user to manually paint the map.
-// Left mouse button paints rock.
-// Right mouse button paints grass.
-// ============================================= 
 void PCG::TileMap::HandleMouseEditing()
 {
     Vector2 mousePos = GetMousePosition();
 
-    // Prevent mouse painting when interacting with the UI panel on the right side.
+    // I block mouse painting over the UI area so clicking buttons does not accidentally
+    // edit the map underneath.
     if (mousePos.x >= BUTTON_X - 10) {
         return;
     }
@@ -216,6 +212,8 @@ void PCG::TileMap::HandleMouseEditing()
     int tileX = (int)(mousePos.x / TILE_SIZE);
     int tileY = (int)(mousePos.y / TILE_SIZE);
 
+    // Converting mouse position to tile position lets the user edit the same
+    // array data that the generators use.
     if (tileX >= 0 && tileX < MAP_COLUMNS && tileY >= 0 && tileY < MAP_ROWS) {
         if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
             SetTile(tileX, tileY, TILE_TYPE_ROCK);
@@ -228,69 +226,61 @@ void PCG::TileMap::HandleMouseEditing()
 }
 
 
-// ============================================= 
+
 // void PCG_DrawGUI()
-// ============================================= 
 void PCG::TileMap::DrawGUI() {
-    // Reset Button
+    // Reset uses the current generator instead of always using random generation,
+    // so the button behaves consistently with the selected algorithm.
     if (GuiButton(RESET_BUTTON_BOUNDS, "Reset Map")) {
-        //CreateMap();
-        // pass in this instances tileArray to our map generator, and call the generate function to fill it with new data.
         if (GetMapGenerator() != nullptr) {
             GetMapGenerator()->Generate(tileArray);
         }
     }
 
-    // Save Data Button
     Rectangle saveRect = { PCG::BUTTON_X, PCG::BUTTON_Y - 70, PCG::BUTTON_WIDTH, PCG::BUTTON_HEIGHT };
     if (GuiButton(saveRect, "Save Map Data")) {
         SaveMapData(MAP_TEXT_FILENAME);
     }
 
-    // Load Data Button
     Rectangle loadRect = { PCG::BUTTON_X, PCG::BUTTON_Y - 140, PCG::BUTTON_WIDTH, PCG::BUTTON_HEIGHT };
     if (GuiButton(loadRect, "Load Map Data")) {
         LoadMapData(MAP_TEXT_FILENAME);
     }
 
-    // Save Image Button
     Rectangle imgRect = { PCG::BUTTON_X, PCG::BUTTON_Y - 210, PCG::BUTTON_WIDTH, PCG::BUTTON_HEIGHT };
     if (GuiButton(imgRect, "Save Map PNG")) {
         SaveMapImage(MAP_IMAGE_FILENAME);
     }
 
-    // Random Generator Button
+    // Generator buttons make the difference between algorithms visible to the user,
+    // which helps compare random, noise, and Cellular Automata output.
     Rectangle randomRect = { PCG::BUTTON_X, PCG::BUTTON_Y - 280, PCG::BUTTON_WIDTH, PCG::BUTTON_HEIGHT };
     if (GuiButton(randomRect, "Random Generator")) {
         SetMapGenerator(new PCG::RandomMapGenerator());
         GetMapGenerator()->Generate(tileArray);
     }
 
-    // Noise Generator Button
     Rectangle noiseRect = { PCG::BUTTON_X, PCG::BUTTON_Y - 350, PCG::BUTTON_WIDTH, PCG::BUTTON_HEIGHT };
     if (GuiButton(noiseRect, "Noise Generator")) {
         SetMapGenerator(new PCG::NoiseMapGenerator());
         GetMapGenerator()->Generate(tileArray);
     }
 
-    // Cellular Automata Generator Button
     Rectangle cellularRect = { PCG::BUTTON_X, PCG::BUTTON_Y - 420, PCG::BUTTON_WIDTH, PCG::BUTTON_HEIGHT };
     if (GuiButton(cellularRect, "Cellular Automata")) {
         SetMapGenerator(new PCG::CellularAutomataGenerator());
         GetMapGenerator()->Generate(tileArray);
     }
 
-    // Small instruction text for manual editing.
     DrawText("Left click: Rock", 20, SCREEN_HEIGHT - 50, 20, WHITE);
     DrawText("Right click: Grass", 20, SCREEN_HEIGHT - 25, 20, WHITE);
 }
 
 
-// =============================================
-// SetMapGenerator and GetMapGenerator functions for our TileMap class, to allow us to assign a map generator to our tilemap, and retrieve it when we want to generate new maps.
-// =============================================
+// SetMapGenerator and GetMapGenerator functions.
 void PCG::TileMap::SetMapGenerator(PCG::MapGenerator* generator) {
-    // Delete the previous generator before assigning a new one to avoid leaking memory.
+    // When switching generators, the old generator is deleted first so the pointer
+    // does not lose access to heap memory and create a memory leak.
     if (mapGenerator != nullptr) {
         delete mapGenerator;
         mapGenerator = nullptr;
@@ -300,35 +290,26 @@ void PCG::TileMap::SetMapGenerator(PCG::MapGenerator* generator) {
 }
 
 
-// =============================================
-// GetMapGenerator returns a pointer to the current map generator assigned to this tilemap, so we can call its Generate function when we want to create new maps.
-// =============================================
+// GetMapGenerator
 PCG::MapGenerator* PCG::TileMap::GetMapGenerator() const {
+    // Returning the base pointer lets the editor call Generate() without needing
+    // to know which specific generator class is currently active.
     return mapGenerator;
 }
 
 
-// =============================================
-// MapGenerator
-// =============================================
-// As it is a pure virtual class, we don't need to implement anything here. The derived classes will provide the actual generation logic.
-
-
-// Derived classes will implement the Generate function to create different types of maps.
-// =============================================
 // RandomMapGenerator
-// =============================================
-// Constructor
 PCG::RandomMapGenerator::RandomMapGenerator() {
-    // nothing to initialize for now, but you could seed a random generator here if you want reproducible maps
+    // No setup is needed because this generator only uses Raylib's random value function.
 }
 
-// Destructor
 PCG::RandomMapGenerator::~RandomMapGenerator() {
-    // nothing to clean up for now, but if you had allocated resources (like noise generators) you would release them here
+    // No heap memory is created inside this class, so there is nothing extra to clean up.
 }
 
 void PCG::RandomMapGenerator::Generate(TileType _tileArray[MAP_ROWS][MAP_COLUMNS]) {
+    // Random generation is kept as a baseline so I can compare it against more
+    // structured methods like noise and Cellular Automata.
     for (int y = 0; y < MAP_ROWS; y++) {
         for (int x = 0; x < MAP_COLUMNS; x++) {
             _tileArray[y][x] = (TileType)GetRandomValue(0, TILE_COUNT - 1);
@@ -336,36 +317,32 @@ void PCG::RandomMapGenerator::Generate(TileType _tileArray[MAP_ROWS][MAP_COLUMNS
     }
 }
 
-
-// =============================================
 // NoiseGenerator
-// =============================================
-// Constructor
 PCG::NoiseMapGenerator::NoiseMapGenerator() {
-    // nothing to initialize for now, but you could seed a random noise here if you want reproducible maps
+    // No setup is needed here because the noise image is generated inside Generate().
 }
 
-// Destructor
 PCG::NoiseMapGenerator::~NoiseMapGenerator() {
-    // nothing to clean up for now, but if you had allocated resources (like noise generators) you would release them here
+    // The generated noise image is unloaded in Generate(), so this destructor stays empty.
 }
 
 void PCG::NoiseMapGenerator::Generate(TileType _tileArray[MAP_ROWS][MAP_COLUMNS]) {
-    // Random offsets make the map different every time
+    // Random offsets stop the noise map from looking identical every time it is generated.
     int offsetX = GetRandomValue(0, 1000);
     int offsetY = GetRandomValue(0, 1000);
     float scale = 2.5f;
 
-    // Raylib's Perlin Noise function
+    // Noise generation creates smoother patterns than pure random generation,
+    // which makes the map feel less chaotic.
     Image noiseImg = GenImagePerlinNoise(MAP_COLUMNS, MAP_ROWS, offsetX, offsetY, scale);
 
     for (int y = 0; y < MAP_ROWS; y++) {
         for (int x = 0; x < MAP_COLUMNS; x++) {
-            // Read the brightness of the noise pixel
             Color col = GetImageColor(noiseImg, x, y);
             float brightness = (col.r + col.g + col.b) / (3.0f * 255.0f);
 
-            // Threshold: Dark spots are Rock, Light spots are Grass
+            // A simple threshold converts brightness into tile types.
+            // Darker areas become rock and lighter areas become grass.
             if (brightness < 0.5f) {
                 _tileArray[y][x] = TILE_TYPE_ROCK;
             }
@@ -378,37 +355,32 @@ void PCG::NoiseMapGenerator::Generate(TileType _tileArray[MAP_ROWS][MAP_COLUMNS]
     UnloadImage(noiseImg);
 }
 
-
-// =============================================
 // CellularAutomataGenerator
-// Creates cave-like maps by first randomising tiles, then smoothing them based on nearby rock tiles.
-// =============================================
-// Constructor
 PCG::CellularAutomataGenerator::CellularAutomataGenerator() {
-    // nothing to initialize for now, but this class could later expose parameters such as fill percentage or smoothing passes
+    // Values such as fill percentage and smoothing passes could be exposed later
+    // if I wanted more user control over cave generation.
 }
 
-// Destructor
 PCG::CellularAutomataGenerator::~CellularAutomataGenerator() {
-    // nothing to clean up for now
+    // This generator does not allocate extra memory, so no cleanup is needed here.
 }
 
 
-// =============================================
 // CountRockNeighbours
-// Counts how many surrounding tiles are rocks.
-// Out-of-bounds tiles are treated as rocks to create solid map borders.
-// =============================================
 int PCG::CellularAutomataGenerator::CountRockNeighbours(TileType _tileArray[MAP_ROWS][MAP_COLUMNS], int x, int y)
 {
     int rockCount = 0;
 
+    // The algorithm checks nearby tiles because each tile's final state depends
+    // on the shape of the surrounding area, not only on its own random value.
     for (int neighbourY = y - 1; neighbourY <= y + 1; neighbourY++) {
         for (int neighbourX = x - 1; neighbourX <= x + 1; neighbourX++) {
             if (neighbourX == x && neighbourY == y) {
                 continue;
             }
 
+            // Out-of-bounds neighbours are counted as rock so the map forms solid outer edges
+            // instead of open gaps around the border.
             if (neighbourX < 0 || neighbourX >= MAP_COLUMNS || neighbourY < 0 || neighbourY >= MAP_ROWS) {
                 rockCount++;
             }
@@ -422,15 +394,11 @@ int PCG::CellularAutomataGenerator::CountRockNeighbours(TileType _tileArray[MAP_
 }
 
 
-// =============================================
 // Generate
-// First creates a noisy random rock/grass map, then repeatedly smooths it.
-// More neighbouring rocks means the current tile becomes rock.
-// Fewer neighbouring rocks means the current tile becomes grass.
-// =============================================
 void PCG::CellularAutomataGenerator::Generate(TileType _tileArray[MAP_ROWS][MAP_COLUMNS])
 {
-    // Initial random fill. A higher number creates more rock-heavy caves.
+    // Cellular Automata starts with random tiles, then smooths them using neighbour rules.
+    // This helps turn noisy data into more cave-like spaces.
     for (int y = 0; y < MAP_ROWS; y++) {
         for (int x = 0; x < MAP_COLUMNS; x++) {
             int randomValue = GetRandomValue(0, 100);
@@ -438,7 +406,7 @@ void PCG::CellularAutomataGenerator::Generate(TileType _tileArray[MAP_ROWS][MAP_
         }
     }
 
-    // Smooth the map multiple times to create more natural cave-like shapes.
+    // Several smoothing passes are used because one pass usually still looks too noisy.
     for (int i = 0; i < 5; i++) {
         TileType tempArray[MAP_ROWS][MAP_COLUMNS];
 
@@ -455,6 +423,8 @@ void PCG::CellularAutomataGenerator::Generate(TileType _tileArray[MAP_ROWS][MAP_
             }
         }
 
+        // The temporary array prevents early changes in the loop from affecting
+        // neighbour counts for tiles that have not been processed yet.
         for (int y = 0; y < MAP_ROWS; y++) {
             for (int x = 0; x < MAP_COLUMNS; x++) {
                 _tileArray[y][x] = tempArray[y][x];
